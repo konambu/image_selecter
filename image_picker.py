@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import random
 import shutil
@@ -20,6 +21,18 @@ except ImportError as exc:  # pragma: no cover
 
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+APP_DIR = Path(__file__).resolve().parent
+CONFIG_PATH = APP_DIR / "image_picker_config.json"
+DEFAULT_FAVORITES = [
+    {
+        "name": "Portrait History",
+        "path": r"E:\work\new_game\src\test-game\assets\portraits\history",
+    },
+    {
+        "name": "Comfy Output",
+        "path": r"C:\Users\nanbu\AppData\Local\Comfy-Desktop\ComfyUI-Shared\output",
+    },
+]
 
 
 @dataclass
@@ -34,10 +47,24 @@ def list_images(folder: Path) -> list[Path]:
     return files
 
 
+def load_config() -> dict:
+    if not CONFIG_PATH.exists():
+        return {"favorites": DEFAULT_FAVORITES}
+    try:
+        return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {"favorites": DEFAULT_FAVORITES}
+
+
+def save_config(data: dict) -> None:
+    CONFIG_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 class ImagePickerApp:
     def __init__(self, root: tk.Tk, folder: Path | None):
         self.root = root
         self.folder = folder
+        self.config = load_config()
         self.pool_dir: Path | None = None
         self.images: list[Path] = []
         self.queue: list[Path] = []
@@ -68,6 +95,8 @@ class ImagePickerApp:
             width=16,
         )
         choose_button.pack(side="left", padx=(0, 10))
+
+        self._build_favorite_buttons(top)
 
         self.status_var = tk.StringVar()
         self.status = tk.Label(
@@ -162,6 +191,32 @@ class ImagePickerApp:
             width=12,
         )
         self.quit_button.pack(side="right")
+
+    def _build_favorite_buttons(self, parent: tk.Widget) -> None:
+        fav_frame = tk.Frame(parent, bg="#1d1a16")
+        fav_frame.pack(side="left", padx=(0, 10))
+        favorites = self.config.get("favorites", DEFAULT_FAVORITES)
+        for fav in favorites:
+            label = fav.get("name", "Favorite")
+            button = tk.Button(
+                fav_frame,
+                text=label,
+                command=lambda p=fav.get("path", ""): self._open_favorite(p),
+                bg="#3f372c",
+                fg="#fff3d7",
+                font=("Meiryo", 10),
+                width=14,
+            )
+            button.pack(side="left", padx=(0, 6))
+
+    def _open_favorite(self, raw_path: str) -> None:
+        if not raw_path:
+            return
+        folder = Path(raw_path).expanduser()
+        if folder.is_dir():
+            self._load_folder(folder)
+            return
+        messagebox.showwarning("Image Picker", f"Folder not found:\n{folder}")
 
     def _choose_folder(self) -> None:
         chosen = filedialog.askdirectory(title="画像フォルダを選んでください")
@@ -303,6 +358,13 @@ def main() -> int:
         candidate = Path(args.folder).expanduser().resolve()
         if candidate.is_dir():
             folder = candidate
+    else:
+        cfg = load_config()
+        favorites = cfg.get("favorites", DEFAULT_FAVORITES)
+        if favorites:
+            first = Path(favorites[0].get("path", "")).expanduser()
+            if first.is_dir():
+                folder = first
 
     root = tk.Tk()
     app = ImagePickerApp(root, folder)
