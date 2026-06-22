@@ -43,8 +43,38 @@ class Pair:
 
 def list_images(folder: Path) -> list[Path]:
     files = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
-    files.sort(key=lambda p: p.name.lower())
-    return files
+    chosen: dict[str, Path] = {}
+    for path in files:
+        stem = path.stem
+        base_key = stem[:-5] if stem.endswith("_base") else stem
+        if stem.endswith("_base"):
+            continue
+        chosen[base_key] = path
+    result = list(chosen.values())
+    result.sort(key=lambda p: p.name.lower())
+    return result
+
+
+def remove_godot_import_files(path: Path) -> None:
+    import_file = Path(str(path) + ".import")
+    if import_file.exists():
+        import_file.unlink()
+    if path.suffix.lower() != ".import":
+        stem_import = path.with_suffix(path.suffix + ".import")
+        if stem_import.exists():
+            stem_import.unlink()
+
+
+def remove_companion_base(path: Path) -> None:
+    if path.stem.endswith("_base"):
+        return
+    base_path = path.with_name(f"{path.stem}_base{path.suffix}")
+    if base_path.exists():
+        try:
+            base_path.unlink()
+        except FileNotFoundError:
+            pass
+        remove_godot_import_files(base_path)
 
 
 def load_config() -> dict:
@@ -300,6 +330,8 @@ class ImagePickerApp:
             path.unlink()
         except FileNotFoundError:
             pass
+        remove_godot_import_files(path)
+        remove_companion_base(path)
 
     def _move_to_pool(self, path: Path) -> None:
         if self.pool_dir is None:
