@@ -1,0 +1,9 @@
+# Byte-compiled / cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local editor files
+.vscode/
+.idea/
